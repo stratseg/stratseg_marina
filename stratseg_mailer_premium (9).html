@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StratSeg | Mailer Pro</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- EmailJS -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Firebase (compat, mesmo padrão usado no portal de inadimplência) -->
+    <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        heading: ['Montserrat', 'sans-serif'],
+                    },
+                    colors: {
+                        strat: {
+                            navy: '#1a2542',
+                            royal: '#3a5ba8',
+                            amber: '#f5a623',
+                            'amber-hover': '#e8920a',
+                            gray: '#f4f5f8',
+                            border: '#e2e8f0',
+                            text: '#475569'
+                        }
+                    },
+                    boxShadow: {
+                        'soft': '0 10px 40px -10px rgba(26, 37, 66, 0.08)',
+                        'inner-soft': 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
+                        'glow': '0 0 20px rgba(245, 166, 35, 0.4)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #f4f5f8; color: #334155; overflow: hidden; }
+        
+        /* Custom Scrollbar Elegant */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* Smooth View Transitions */
+        .view-section {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(15px);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+            padding: 2.5rem;
+        }
+        .view-section.active {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+            z-index: 10;
+        }
+
+        /* Sidebar Nav Dots - Premium Animation */
+        .nav-dot { transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        .nav-dot i { opacity: 0; transform: scale(0.3) rotate(-45deg); transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        .nav-item.active .nav-dot { 
+            background-color: #f5a623; 
+            animation: pulse-glow 2s infinite cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .nav-item.active .nav-text { color: #ffffff; font-weight: 700; transform: translateX(3px); }
+        
+        .nav-item.done .nav-dot { 
+            background-color: #10b981; /* Emerald green */
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+            border-color: #1a2542;
+        }
+        .nav-item.done .nav-dot i { opacity: 1; transform: scale(1) rotate(0deg); }
+        .nav-item.done .nav-text { color: #cbd5e1; font-weight: 500; }
+
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 0 0 rgba(245, 166, 35, 0.6); }
+            70% { box-shadow: 0 0 0 10px rgba(245, 166, 35, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(245, 166, 35, 0); }
+        }
+
+        /* UI Elements */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .browser-mockup {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #fff;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+        }
+        .browser-header {
+            background: #f8fafc;
+            padding: 12px 16px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .browser-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .dot-red { background: #ef4444; }
+        .dot-yel { background: #f5a623; }
+        .dot-grn { background: #22c55e; }
+        
+        .fade-in-up { animation: fadeInUp 0.4s ease-out forwards; }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Loader */
+        .spinner { border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; width: 20px; height: 20px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="antialiased h-screen w-full flex overflow-hidden">
+
+    <!-- Overlay do menu mobile -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-strat-navy/50 backdrop-blur-sm z-30 hidden lg:hidden" onclick="toggleMobileNav()"></div>
+
+    <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 w-72 max-w-[85vw] bg-strat-navy flex flex-col justify-between flex-shrink-0 z-40 shadow-2xl transform -translate-x-full lg:translate-x-0 transition-transform duration-300">
+        <!-- Decorativo de fundo -->
+        <div class="absolute -right-20 -top-20 w-64 h-64 bg-strat-royal rounded-full blur-3xl opacity-20 pointer-events-none"></div>
+
+        <div class="p-8 relative z-10">
+            <!-- Logo -->
+            <div class="flex items-center justify-between gap-1 mb-16">
+                <img src="https://www.stratseg.com/assets/STRATSEG%20BRANCO.png" alt="StratSeg" class="h-8 w-auto drop-shadow-md">
+                <button onclick="toggleMobileNav()" class="lg:hidden w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-white/10 hover:text-white transition-colors">
+                    <i class="ph-bold ph-x text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Navegação Sutil -->
+            <nav class="flex flex-col gap-8 relative mt-2">
+                <!-- Linha guia vertical -->
+                <div class="absolute left-[9px] top-2 bottom-2 w-[2px] bg-slate-800/80 -z-10 rounded-full"></div>
+
+                <div class="nav-item active flex items-center gap-4 cursor-default transition-all" id="nav-step1">
+                    <div class="nav-dot w-5 h-5 rounded-full bg-slate-700 relative z-10 flex items-center justify-center border-2 border-strat-navy">
+                        <i class="ph-bold ph-check text-white text-[10px]"></i>
+                    </div>
+                    <span class="nav-text text-sm text-slate-400 transition-all duration-300">Importar Base</span>
+                </div>
+
+                <div class="nav-item hidden flex items-center gap-4 cursor-default transition-all" id="nav-step2">
+                    <div class="nav-dot w-5 h-5 rounded-full bg-slate-700 relative z-10 flex items-center justify-center border-2 border-strat-navy">
+                        <i class="ph-bold ph-check text-white text-[10px]"></i>
+                    </div>
+                    <span class="nav-text text-sm text-slate-400 transition-all duration-300">Configurar Disparo</span>
+                </div>
+
+                <div class="nav-item flex items-center gap-4 cursor-default transition-all" id="nav-step3">
+                    <div class="nav-dot w-5 h-5 rounded-full bg-slate-700 relative z-10 flex items-center justify-center border-2 border-strat-navy">
+                        <i class="ph-bold ph-check text-white text-[10px]"></i>
+                    </div>
+                    <span class="nav-text text-sm text-slate-400 transition-all duration-300">Revisão Criativa</span>
+                </div>
+
+                <div class="nav-item flex items-center gap-4 cursor-default transition-all" id="nav-step4">
+                    <div class="nav-dot w-5 h-5 rounded-full bg-slate-700 relative z-10 flex items-center justify-center border-2 border-strat-navy">
+                        <i class="ph-bold ph-check text-white text-[10px]"></i>
+                    </div>
+                    <span class="nav-text text-sm text-slate-400 transition-all duration-300">Central de Envio</span>
+                </div>
+            </nav>
+        </div>
+
+        <div class="p-8 relative z-10 border-t border-slate-800/50">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-strat-amber shadow-inner">
+                    <i class="ph-fill ph-shield-check text-xl"></i>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-300 font-medium">Sessão Segura</p>
+                    <p class="text-[10px] text-slate-500">Dados processados localmente</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 relative bg-slate-50 flex flex-col h-full min-w-0">
+
+        <!-- Barra superior — fica no fluxo normal, nunca sobrepõe o conteúdo abaixo -->
+        <header class="flex items-center justify-between gap-3 px-4 sm:px-6 py-3.5 border-b border-slate-200/70 bg-white/80 backdrop-blur-sm flex-shrink-0 relative z-30">
+            <button onclick="toggleMobileNav()" class="lg:hidden w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors flex-shrink-0">
+                <i class="ph-bold ph-list text-xl"></i>
+            </button>
+            <span class="lg:hidden font-heading font-extrabold text-strat-navy text-sm truncate">StratSeg Mailer</span>
+            <div class="flex items-center gap-2 sm:gap-3 ml-auto">
+                <button onclick="openSettings()" class="text-xs sm:text-sm font-semibold text-slate-400 hover:text-strat-navy transition-colors flex items-center gap-1.5 sm:gap-2 bg-white px-3 sm:px-4 py-2 rounded-full shadow-sm border border-slate-200">
+                    <i class="ph-bold ph-gear-six"></i> <span class="hidden sm:inline">Configurações</span>
+                </button>
+                <button onclick="openHistory()" class="text-xs sm:text-sm font-semibold text-slate-400 hover:text-strat-navy transition-colors flex items-center gap-1.5 sm:gap-2 bg-white px-3 sm:px-4 py-2 rounded-full shadow-sm border border-slate-200">
+                    <i class="ph-bold ph-clock-counter-clockwise"></i> <span class="hidden sm:inline">Histórico</span>
+                </button>
+                <button onclick="resetApp()" class="text-xs sm:text-sm font-semibold text-slate-400 hover:text-strat-navy transition-colors flex items-center gap-1.5 sm:gap-2 bg-white px-3 sm:px-4 py-2 rounded-full shadow-sm border border-slate-200">
+                    <i class="ph-bold ph-arrows-counter-clockwise"></i> <span class="hidden sm:inline">Reiniciar</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- CONTAINER DAS VIEWS -->
+        <div id="views-container" class="relative w-full flex-1 overflow-hidden">
+
+            <!-- ================= VIEW 1: UPLOAD & MAPPING ================= -->
+            <section id="view1" class="view-section active flex flex-col items-center justify-center">
+                
+                <div id="intro-module" class="w-full max-w-5xl transition-all duration-500 flex flex-col items-center text-center relative z-10">
+                    <div class="bg-strat-navy rounded-[40px] shadow-2xl p-12 md:p-20 w-full relative overflow-hidden flex flex-col items-center text-center border border-slate-700/50">
+                        <div class="absolute top-0 right-0 w-96 h-96 bg-strat-royal rounded-full blur-[100px] opacity-40 pointer-events-none transform translate-x-1/3 -translate-y-1/3"></div>
+                        <div class="absolute bottom-0 left-0 w-80 h-80 bg-strat-amber rounded-full blur-[100px] opacity-10 pointer-events-none transform -translate-x-1/3 translate-y-1/3"></div>
+                        
+                        <img src="https://www.stratseg.com/assets/STRATSEG%20BRANCO.png" alt="StratSeg" class="h-14 w-auto mb-10 relative z-10 drop-shadow-lg">
+                        
+                        <h1 class="font-heading font-extrabold text-4xl md:text-5xl text-white mb-6 tracking-tight leading-tight relative z-10">
+                            Comunicação Estratégica.<br><span class="text-strat-amber">Conexões que geram valor.</span>
+                        </h1>
+                        <p class="text-slate-300 text-lg mb-12 max-w-2xl mx-auto font-medium relative z-10 leading-relaxed">
+                            Portal exclusivo para automação de campanhas, relacionamento direto e envio de propostas personalizadas com a máxima eficiência.
+                        </p>
+                        
+                        <div class="flex flex-col items-center gap-5 relative z-10 w-full">
+                            <button onclick="showDropzone()" class="px-8 py-4 rounded-xl font-bold text-base bg-strat-amber text-strat-navy shadow-[0_0_30px_rgba(245,166,35,0.3)] hover:bg-yellow-400 hover:scale-105 transition-all flex items-center gap-3">
+                                <i class="ph-bold ph-rocket-launch text-xl"></i> Iniciar Operação
+                            </button>
+                            <button onclick="downloadTemplate()" class="text-xs font-medium text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1.5">
+                                <i class="ph-bold ph-download-simple text-sm"></i> Baixar modelo de mala direta
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="dropzone-module" class="w-full max-w-2xl hidden fade-in-up relative z-10">
+                    <div class="flex items-center justify-between mb-6 px-2">
+                        <button onclick="hideDropzone()" class="text-sm font-bold text-slate-400 hover:text-strat-navy flex items-center gap-2 transition-colors bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200">
+                            <i class="ph-bold ph-arrow-left"></i> Voltar
+                        </button>
+                        <span class="text-xs font-bold text-strat-royal uppercase tracking-wider bg-blue-50 px-3 py-1.5 rounded-md border border-blue-100">Passo 1 de 4</span>
+                    </div>
+                    
+                    <div class="bg-white rounded-[32px] shadow-soft p-10 border border-slate-100 text-center relative overflow-hidden group">
+                        <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-strat-amber to-strat-royal"></div>
+                        
+                        <div class="w-20 h-20 mx-auto bg-slate-50 group-hover:bg-amber-50 rounded-2xl flex items-center justify-center mb-6 shadow-sm transition-colors transform group-hover:scale-110 duration-300 border border-slate-100 group-hover:border-amber-200">
+                            <i class="ph-fill ph-microsoft-excel-logo text-4xl text-emerald-600 group-hover:text-strat-amber transition-colors"></i>
+                        </div>
+                        
+                        <h2 class="font-heading font-extrabold text-2xl text-strat-navy mb-2">Importar Mala Direta</h2>
+                        <p class="text-slate-500 text-sm mb-8 font-medium max-w-sm mx-auto leading-relaxed">
+                            Insira a planilha contendo os leads.<br>Requisitos: colunas de <b>Nome</b> e <b>E-mail</b>.
+                        </p>
+                        
+                        <div id="dropzone" class="border-2 border-dashed border-slate-300 rounded-2xl p-10 cursor-pointer hover:border-strat-amber hover:bg-amber-50 transition-all duration-300 bg-slate-50/50 flex flex-col items-center gap-3">
+                            <div class="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center text-strat-royal border border-slate-200 mb-2">
+                                <i class="ph-bold ph-upload-simple text-xl"></i>
+                            </div>
+                            <span class="font-bold text-strat-navy text-lg">Clique para procurar</span>
+                            <span class="text-xs text-slate-400 font-medium">ou arraste o arquivo (.xlsx, .csv) para esta área</span>
+                        </div>
+                        <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" class="hidden">
+                    </div>
+                </div>
+
+                <!-- Painel de Mapeamento (Oculto inicialmente, aparece com fade após upload) -->
+                <div class="w-full max-w-4xl hidden fade-in-up" id="mapping-module">
+                    <div class="flex items-center gap-4 mb-8">
+                        <button onclick="backToDropzone()" class="w-11 h-11 rounded-xl text-slate-400 hover:text-strat-navy hover:bg-white transition-all flex items-center justify-center flex-shrink-0 border border-transparent hover:border-slate-200 hover:shadow-sm">
+                            <i class="ph-bold ph-arrow-left text-lg"></i>
+                        </button>
+                        <div class="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-strat-royal border border-slate-100">
+                            <i class="ph-fill ph-funnel text-2xl"></i>
+                        </div>
+                        <div>
+                            <h2 class="font-heading font-extrabold text-2xl text-strat-navy">Mapeamento de Dados</h2>
+                            <p class="text-slate-500 text-sm mt-1">Identificamos <span id="count-total" class="font-bold text-strat-navy">0</span> registros. Confirme as colunas abaixo.</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-3xl shadow-soft p-8 border border-slate-100">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2"><i class="ph-fill ph-user text-strat-royal"></i> Coluna de Nome</label>
+                                <select id="col-name" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-strat-royal outline-none font-medium text-strat-navy shadow-sm"></select>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2"><i class="ph-fill ph-envelope-simple text-strat-amber"></i> Coluna de E-mail</label>
+                                <select id="col-email" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-strat-royal outline-none font-medium text-strat-navy shadow-sm"></select>
+                            </div>
+                            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2"><i class="ph-fill ph-star text-emerald-500"></i> Plano (Opcional)</label>
+                                <select id="col-plan" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-strat-royal outline-none font-medium text-strat-navy shadow-sm"></select>
+                            </div>
+                        </div>
+
+                        <!-- Resumo Visual -->
+                        <div class="flex items-center justify-between bg-slate-800 text-white rounded-2xl p-6 shadow-inner">
+                            <div class="flex items-center gap-8">
+                                <div>
+                                    <p class="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">Válidos Prontos</p>
+                                    <p class="text-3xl font-heading font-extrabold text-emerald-400" id="count-valid">0</p>
+                                </div>
+                                <div class="w-px h-10 bg-slate-700"></div>
+                                <div>
+                                    <p class="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">Com Erros (Ignorados)</p>
+                                    <p class="text-3xl font-heading font-extrabold text-rose-400" id="count-invalid">0</p>
+                                </div>
+                            </div>
+                            <button id="btn-next-2" onclick="saveAndBuildPreview()" disabled class="px-8 py-4 rounded-xl font-bold text-sm bg-strat-amber text-strat-navy shadow-[0_4px_15px_rgba(245,166,35,0.3)] hover:bg-strat-amber-hover hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-none flex items-center gap-2">
+                                Continuar <i class="ph-bold ph-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view2" class="view-section">
+                <div class="max-w-4xl mx-auto mt-4">
+                    <div class="mb-10">
+                        <h2 class="font-heading font-extrabold text-3xl text-strat-navy">Parâmetros da Campanha</h2>
+                        <p class="text-slate-500 text-sm mt-2">Defina a mensagem e conecte o motor de envio EmailJS.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- Card Esquerdo: Mensagem -->
+                        <div class="bg-white rounded-3xl shadow-soft p-8 border border-slate-100 flex flex-col gap-6">
+                            <div class="flex items-center gap-3 border-b border-slate-100 pb-4">
+                                <i class="ph-fill ph-text-aa text-2xl text-strat-royal"></i>
+                                <h3 class="font-bold text-strat-navy text-lg">Conteúdo</h3>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Assunto do E-mail <span class="text-rose-500">*</span></label>
+                                <input type="text" id="cfg-subject" placeholder="Ex: {{nome}}, sua proposta está pronta!" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-strat-royal focus:bg-white outline-none transition-all font-medium text-strat-navy">
+                                <p class="text-xs text-slate-400 mt-2 font-medium"><i class="ph-fill ph-info text-strat-amber"></i> Variável disponível: <code>{{nome}}</code></p>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Link do Botão de Ação (CTA) <span class="text-rose-500">*</span></label>
+                                <input type="text" id="cfg-cta" value="https://stratseg.github.io/stratseg-propostas/" placeholder="https://stratseg.exemplo/proposta-gabriel.html" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-strat-royal focus:bg-white outline-none transition-all font-medium text-strat-navy">
+                                <p class="text-xs text-slate-400 mt-2 font-medium"><i class="ph-fill ph-info text-strat-amber"></i> Cole aqui o link da página de proposta (lead page). O nome do cliente é adicionado automaticamente na URL — não precisa escrever <code>{{nome}}</code> à mão.</p>
+                            </div>
+                        </div>
+
+                        <!-- Card Direito: Motor EmailJS -->
+                        <div class="bg-strat-navy rounded-3xl shadow-soft p-8 border border-slate-800 flex flex-col gap-6 relative overflow-hidden">
+                            <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-strat-royal rounded-full blur-3xl opacity-30 pointer-events-none"></div>
+                            
+                            <div class="flex items-center justify-between border-b border-slate-700 pb-4 relative z-10">
+                                <div class="flex items-center gap-3">
+                                    <i class="ph-fill ph-engine text-2xl text-strat-amber"></i>
+                                    <h3 class="font-bold text-white text-lg">Motor EmailJS</h3>
+                                </div>
+                                <a href="https://dashboard.emailjs.com/" target="_blank" class="text-xs text-blue-300 font-semibold hover:text-white transition-colors bg-white/10 px-3 py-1.5 rounded-lg flex items-center gap-1.5"><i class="ph-bold ph-arrow-square-out"></i> Obter chaves</a>
+                            </div>
+
+                            <div class="relative z-10 flex flex-col gap-5">
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Public Key <span class="text-rose-400">*</span></label>
+                                    <input type="password" id="cfg-pubkey" placeholder="••••••••••••" class="w-full bg-slate-800/50 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-strat-amber outline-none transition-all font-mono">
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Service ID <span class="text-rose-400">*</span></label>
+                                        <input type="text" id="cfg-service" placeholder="service_xxxxx" class="w-full bg-slate-800/50 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-strat-amber outline-none transition-all font-mono">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Template ID <span class="text-rose-400">*</span></label>
+                                        <input type="text" id="cfg-template" placeholder="template_xxxxx" class="w-full bg-slate-800/50 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-strat-amber outline-none transition-all font-mono">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-8 flex justify-between items-center">
+                        <button onclick="changeView(cameFromView)" class="px-5 py-3 rounded-xl font-bold text-sm text-slate-500 hover:text-strat-navy hover:bg-white transition-all flex items-center gap-2">
+                            <i class="ph-bold ph-arrow-left"></i> Voltar
+                        </button>
+                        <button onclick="saveAndBuildPreview()" class="px-8 py-4 rounded-xl font-bold text-sm bg-strat-amber text-strat-navy shadow-[0_4px_15px_rgba(245,166,35,0.3)] hover:bg-strat-amber-hover hover:scale-105 transition-all flex items-center gap-2">
+                            Gerar Pré-visualização <i class="ph-bold ph-magic-wand"></i>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view3" class="view-section">
+                <div class="h-full flex flex-col max-w-[1400px] mx-auto">
+                    <div class="flex items-center justify-between mb-6 flex-shrink-0 gap-4">
+                        <div class="flex items-center gap-4 min-w-0">
+                            <button onclick="changeView(1)" class="w-11 h-11 rounded-xl text-slate-500 hover:text-strat-navy hover:bg-white transition-all flex items-center justify-center flex-shrink-0 border border-transparent hover:border-slate-200 hover:shadow-sm">
+                                <i class="ph-bold ph-arrow-left text-lg"></i>
+                            </button>
+                            <div class="min-w-0">
+                                <h2 class="font-heading font-extrabold text-3xl text-strat-navy">Revisão Criativa</h2>
+                                <p class="text-slate-500 text-sm mt-1">Aprove visualmente as peças antes de autorizar o envio em lote.</p>
+                            </div>
+                        </div>
+                        <button id="btn-next-4" onclick="changeView(4)" disabled class="px-8 py-3.5 rounded-xl font-bold text-sm bg-strat-navy text-white shadow-lg hover:bg-slate-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 flex-shrink-0">
+                            Aprovar e Ir para Disparo <i class="ph-bold ph-arrow-right"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex-1 min-h-[600px] grid grid-cols-1 lg:grid-cols-12 gap-6 pb-6">
+                        
+                        <!-- Lista Lateral (Menor, mais elegante) -->
+                        <div class="lg:col-span-3 bg-white rounded-3xl shadow-soft border border-slate-100 flex flex-col overflow-hidden">
+                            <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider"><span id="review-total-count" class="text-strat-royal">0</span> Leads</span>
+                                <button onclick="markAllReviewed()" class="text-[10px] font-bold text-strat-navy uppercase bg-amber-100 hover:bg-strat-amber px-3 py-1.5 rounded-lg transition-colors">Aprovar Todos</button>
+                            </div>
+                            <div id="review-list" class="flex-1 overflow-y-auto divide-y divide-slate-50 p-2">
+                                <!-- JS Injects -->
+                            </div>
+                        </div>
+
+                        <!-- Browser Mockup (Hero da tela) -->
+                        <div class="lg:col-span-9 flex flex-col browser-mockup shadow-soft border-slate-200 rounded-3xl">
+                            <!-- Header do Browser com Controles Integrados -->
+                            <div class="browser-header flex items-center justify-between px-6 py-4 bg-slate-50">
+                                <div class="flex items-center gap-2 w-1/4">
+                                    <div class="browser-dot dot-red"></div><div class="browser-dot dot-yel"></div><div class="browser-dot dot-grn"></div>
+                                </div>
+                                
+                                <div class="w-2/4 text-center">
+                                    <div class="bg-white border border-slate-200 shadow-sm rounded-lg px-4 py-1.5 inline-flex items-center gap-2 max-w-full">
+                                        <i class="ph-bold ph-lock-key text-slate-400 text-xs"></i>
+                                        <span class="text-xs font-medium text-slate-600 truncate" id="preview-subject-bar">Assunto do e-mail</span>
+                                    </div>
+                                </div>
+
+                                <div class="w-1/4 flex justify-end gap-2">
+                                    <div class="flex items-center bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
+                                        <button onclick="prevReview()" class="w-8 h-8 rounded-md hover:bg-slate-50 flex items-center justify-center text-slate-600 transition-colors"><i class="ph-bold ph-caret-left"></i></button>
+                                        <span class="text-xs font-bold text-slate-400 w-10 text-center" id="preview-counter">0/0</span>
+                                        <button onclick="nextReview()" class="w-8 h-8 rounded-md hover:bg-slate-50 flex items-center justify-center text-slate-600 transition-colors"><i class="ph-bold ph-caret-right"></i></button>
+                                    </div>
+                                    <button id="btn-toggle-review" onclick="toggleReviewStatus()" class="px-5 py-2 rounded-lg text-xs font-bold transition-all border border-slate-200 bg-white text-slate-600 hover:border-emerald-500 hover:text-emerald-600 flex items-center gap-2 shadow-sm">
+                                        <i class="ph-bold ph-check-circle"></i> Aprovar Peça
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Contexto do Lead -->
+                            <div class="bg-white border-b border-slate-100 px-6 py-3 flex items-center justify-between gap-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400"><i class="ph-fill ph-user"></i></div>
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-bold text-strat-navy leading-none" id="preview-name">Nome</span>
+                                        <span class="text-[11px] text-slate-400 mt-1" id="preview-email">email@dominio.com</span>
+                                    </div>
+                                </div>
+                                <button id="btn-send-test" onclick="sendTestEmail()" class="px-4 py-2 rounded-lg text-xs font-bold transition-all border border-strat-royal/30 bg-blue-50 text-strat-royal hover:bg-strat-royal hover:text-white flex items-center gap-2 shadow-sm flex-shrink-0">
+                                    <i class="ph-bold ph-paper-plane-tilt"></i> Enviar Teste
+                                </button>
+                            </div>
+
+                            <iframe id="preview-frame" class="w-full flex-1 bg-slate-50/50" title="Pré-visualização"></iframe>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view4" class="view-section">
+                <div class="max-w-5xl mx-auto mt-4">
+                    
+                    <!-- Painel de Controle de Disparo Estilo "Cockpit" -->
+                    <div class="bg-strat-navy rounded-3xl shadow-soft p-10 border border-slate-800 relative overflow-hidden mb-8">
+                        <div class="absolute right-0 top-0 w-1/2 h-full bg-gradient-to-l from-strat-royal/20 to-transparent pointer-events-none"></div>
+                        
+                        <div class="relative z-10 flex flex-col md:flex-row justify-between items-center gap-10">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <button id="btn-back-4" onclick="changeView(3)" class="w-9 h-9 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center justify-center flex-shrink-0">
+                                        <i class="ph-bold ph-arrow-left"></i>
+                                    </button>
+                                    <h2 class="text-white font-heading font-extrabold text-3xl">Central de Disparo</h2>
+                                </div>
+                                <p class="text-slate-400 text-sm mb-8 font-medium">Mantenha esta aba aberta durante o processo.</p>
+                                
+                                <div class="flex items-end gap-4 mb-4">
+                                    <span class="text-6xl font-heading font-black text-white leading-none tracking-tighter" id="send-sent">0</span>
+                                    <div class="pb-1.5">
+                                        <span class="text-xl text-slate-500 font-bold">/ <span id="send-total">0</span></span>
+                                        <span class="text-xs text-strat-amber uppercase tracking-wider font-bold block mt-1">E-mails Processados</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Modern Progress Bar -->
+                                <div class="w-full bg-slate-800/80 rounded-full h-4 p-1 border border-slate-700">
+                                    <div id="send-progress-bar" class="h-full rounded-full transition-all duration-500 ease-out bg-strat-amber relative overflow-hidden w-0">
+                                        <div class="absolute top-0 left-0 w-full h-full bg-white/20" style="animation: shimmer 2s infinite linear; background-image: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent); background-size: 200% 100%;"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col gap-4 w-full md:w-64 shrink-0">
+                                <button id="btn-start-send" onclick="startSending()" class="w-full py-4 rounded-xl font-bold text-sm bg-strat-amber text-strat-navy shadow-[0_0_20px_rgba(245,166,35,0.3)] hover:bg-yellow-400 hover:scale-105 transition-all flex items-center justify-center gap-2">
+                                    <i class="ph-fill ph-paper-plane-right text-xl"></i> INICIAR DISPARO
+                                </button>
+                                <button id="btn-pause-send" onclick="pauseSending()" disabled class="w-full py-3.5 rounded-xl font-bold text-sm bg-slate-800 text-white hover:bg-slate-700 transition-all border border-slate-600 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                    <i class="ph-fill ph-pause-circle text-lg"></i> Pausar Operação
+                                </button>
+                                <button id="btn-export" onclick="exportReport()" disabled class="w-full py-3.5 rounded-xl font-bold text-sm bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all border border-emerald-500/30 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                    <i class="ph-bold ph-file-csv text-lg"></i> Baixar Relatório
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Logs Table -->
+                    <div class="bg-white rounded-3xl shadow-soft border border-slate-100 overflow-hidden">
+                        <div class="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                            <h3 class="font-bold text-strat-navy text-sm flex items-center gap-2"><i class="ph-fill ph-list-dashes text-strat-royal"></i> Histórico em Tempo Real</h3>
+                            <div class="flex gap-4 text-xs font-bold bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200">
+                                <span class="flex items-center gap-1.5 text-emerald-600"><i class="ph-fill ph-check-circle"></i> Sucesso: <span id="log-count-ok">0</span></span>
+                                <div class="w-px h-4 bg-slate-200"></div>
+                                <span class="flex items-center gap-1.5 text-rose-600"><i class="ph-fill ph-x-circle"></i> Falhas: <span id="log-count-err">0</span></span>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto max-h-[350px]">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-white sticky top-0 z-10 shadow-sm border-b border-slate-100">
+                                    <tr>
+                                        <th class="px-6 py-4 font-bold text-slate-400 text-xs uppercase tracking-wider w-16">Nº</th>
+                                        <th class="px-6 py-4 font-bold text-slate-400 text-xs uppercase tracking-wider">Contato</th>
+                                        <th class="px-6 py-4 font-bold text-slate-400 text-xs uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-4 font-bold text-slate-400 text-xs uppercase tracking-wider w-full">Detalhe do Servidor</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="log-body" class="divide-y divide-slate-50 font-medium">
+                                    <!-- Logs -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <div id="toast" class="fixed bottom-8 right-8 transform translate-y-24 opacity-0 transition-all duration-400 ease-out bg-strat-navy text-white px-6 py-4 rounded-2xl shadow-[0_10px_40px_rgba(26,37,66,0.3)] z-50 flex items-center gap-4 border border-slate-700 min-w-[300px]">
+        <div id="toast-icon-wrap" class="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+            <i id="toast-icon" class="ph-fill ph-check-circle text-emerald-400 text-2xl"></i>
+        </div>
+        <div class="flex flex-col">
+            <span id="toast-title" class="text-sm font-bold leading-tight">Sucesso</span>
+            <span id="toast-msg" class="text-[11px] text-slate-300 mt-1 font-medium">Operação realizada.</span>
+        </div>
+    </div>
+
+    <script>
+        const State = {
+            currentView: 1,
+            rawJson: [], columns: [],
+            leads: [], // { id, name, email, plan, valid, error, reviewed, status, log }
+            config: { subject: '', cta: '', pubkey: '', service: '', template: '' },
+            reviewIndex: 0, sending: false, paused: false
+        };
+
+        const LOCAL_KEY = 'stratseg_mailer_pro_v2';
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const ALLOWED_FILE_EXTENSIONS = ['.xlsx', '.xls', '.csv'];
+        const $ = id => document.getElementById(id);
+
+        function escapeHtml(str) {
+            return String(str ?? '').replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        // ================= FIREBASE — HISTÓRICO DE ENVIOS =================
+        // Cole aqui as credenciais do MESMO projeto Firebase do portal de
+        // inadimplência (ou de um projeto novo). Em Project Settings → Apps →
+        // SDK setup and configuration, copie o objeto de config e substitua
+        // os valores abaixo. Sem isso, o mailer funciona normalmente, só não
+        // guarda histórico entre sessões.
+        const firebaseConfig = {
+            apiKey: "COLE_AQUI",
+            authDomain: "COLE_AQUI",
+            projectId: "COLE_AQUI",
+            storageBucket: "COLE_AQUI",
+            messagingSenderId: "COLE_AQUI",
+            appId: "COLE_AQUI"
+        };
+        const LOGS_COLLECTION = 'mailer_envios';
+
+        let db = null;
+        let firebaseReady = false;
+        try {
+            if (firebaseConfig.apiKey !== "COLE_AQUI") {
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.firestore();
+                firebaseReady = true;
+            }
+        } catch (err) {
+            console.error('Falha ao iniciar Firebase:', err);
+        }
+
+        // Grava um envio no histórico. Nunca trava o fluxo de disparo: se o
+        // Firestore falhar ou não estiver configurado, só registra no console.
+        async function logToHistory(lead, status, log, extra = {}) {
+            if (!firebaseReady) return;
+            try {
+                await db.collection(LOGS_COLLECTION).add({
+                    nome: lead.name || '',
+                    email: lead.email || '',
+                    plano: lead.plan || '',
+                    status: status || '',
+                    log: log || '',
+                    assunto: (State.config && State.config.subject) || '',
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    ...extra
+                });
+            } catch (err) {
+                console.error('Falha ao salvar histórico no Firebase:', err);
+            }
+        }
+
+        function showToast(title, msg, type = 'success') {
+            const toast = $('toast');
+            $('toast-title').textContent = title;
+            $('toast-msg').textContent = msg;
+            
+            const wrap = $('toast-icon-wrap');
+            const icon = $('toast-icon');
+            
+            if (type === 'success') {
+                wrap.className = 'w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0';
+                icon.className = 'ph-fill ph-check-circle text-emerald-400 text-2xl';
+                toast.style.borderColor = '#334155';
+            } else if (type === 'error') {
+                wrap.className = 'w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0';
+                icon.className = 'ph-fill ph-warning-circle text-rose-400 text-2xl';
+                toast.style.borderColor = '#9f1239';
+            } else if (type === 'info') {
+                wrap.className = 'w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0';
+                icon.className = 'ph-fill ph-info text-blue-400 text-2xl';
+                toast.style.borderColor = '#334155';
+            }
+
+            toast.classList.remove('translate-y-24', 'opacity-0');
+            setTimeout(() => { toast.classList.add('translate-y-24', 'opacity-0'); }, 4000);
+        }
+
+        function getFirstName(fullName) {
+            return (String(fullName || '').trim().split(/\s+/)[0]) || 'Cliente';
+        }
+
+        // Monta o link do CTA já personalizado com o nome do lead. Se o operador
+        // não escreveu {{nome}} manualmente na URL, adiciona ?nome=... (ou &nome=...
+        // se já houver outros parâmetros) automaticamente — assim a lead page recebe
+        // o nome do cliente mesmo que ninguém lembre da sintaxe.
+        function buildPersonalizedLink(ctaTemplate, leadName) {
+            let link = (ctaTemplate || '').trim();
+            if (!link) return link;
+            if (!/\{\{\s*nome\s*\}\}/i.test(link)) {
+                link += (link.includes('?') ? '&' : '?') + 'nome={{nome}}';
+            }
+            return link.replace(/\{\{\s*nome\s*\}\}/gi, encodeURIComponent(getFirstName(leadName)));
+        }
+
+        // ================= TRATAMENTO GLOBAL DE ERROS =================
+        window.addEventListener('error', (e) => {
+            console.error('Erro não tratado:', e.error || e.message);
+            showToast("Erro Inesperado", "Algo deu errado na aplicação. Se a tela parecer travada, use 'Reiniciar'.", "error");
+        });
+
+        window.addEventListener('unhandledrejection', (e) => {
+            console.error('Promessa rejeitada sem tratamento:', e.reason);
+            showToast("Erro Inesperado", "Uma operação falhou sem aviso. Confira o console do navegador.", "error");
+        });
+
+        window.addEventListener('beforeunload', (e) => {
+            if (State.sending) {
+                e.preventDefault();
+                e.returnValue = '';
+                return '';
+            }
+        });
+
+        window.addEventListener('offline', () => {
+            if (State.sending) {
+                pauseSending();
+                showToast("Sem Conexão", "A conexão com a internet caiu. Disparo pausado automaticamente.", "error");
+            }
+        });
+
+        window.addEventListener('online', () => {
+            if (State.paused) {
+                showToast("Conexão Restabelecida", "Você está online novamente. Retome o disparo quando quiser.", "info");
+            }
+        });
+
+        function resetApp() {
+            if(State.sending && !confirm("O disparo está em andamento. Tem certeza que deseja reiniciar?")) return;
+            localStorage.removeItem(LOCAL_KEY);
+            location.reload();
+        }
+
+        // ================= NAVIGATION =================
+        function changeView(step) {
+            State.currentView = step;
+            
+            // Views
+            [1, 2, 3, 4].forEach(i => {
+                const el = $(`view${i}`);
+                if(i === step) {
+                    el.classList.add('active');
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+
+            // Sidebar Nav
+            [1, 2, 3, 4].forEach(i => {
+                const nav = $(`nav-step${i}`);
+                nav.classList.remove('active', 'done');
+                if (i === step) nav.classList.add('active');
+                else if (i < step) nav.classList.add('done');
+            });
+
+            // Em telas menores, navegar fecha o menu lateral automaticamente
+            if (window.innerWidth < 1024) closeMobileNav();
+        }
+
+        // A Configuração não faz mais parte do fluxo principal — ela é aberta sob
+        // demanda (ícone de engrenagem, ou automaticamente se algo obrigatório
+        // estiver faltando) e "Voltar" sempre retorna pra onde o operador estava.
+        let cameFromView = 1;
+
+        function openSettings() {
+            cameFromView = State.currentView;
+            changeView(2);
+        }
+
+        function toggleMobileNav() {
+            $('sidebar').classList.toggle('-translate-x-full');
+            $('sidebar-overlay').classList.toggle('hidden');
+        }
+
+        function closeMobileNav() {
+            $('sidebar').classList.add('-translate-x-full');
+            $('sidebar-overlay').classList.add('hidden');
+        }
+
+        // ================= STEP 1: IMPORT & MAPPING =================
+        const dropzone = $('dropzone');
+        const fileInput = $('fileInput');
+
+        function showDropzone() {
+            $('intro-module').classList.add('opacity-0', 'scale-95');
+            setTimeout(() => {
+                $('intro-module').classList.add('hidden');
+                $('dropzone-module').classList.remove('hidden');
+            }, 300);
+        }
+
+        function hideDropzone() {
+            $('dropzone-module').classList.add('hidden');
+            $('intro-module').classList.remove('hidden');
+            setTimeout(() => {
+                $('intro-module').classList.remove('opacity-0', 'scale-95');
+            }, 50);
+        }
+
+        function backToDropzone() {
+            $('mapping-module').classList.add('hidden');
+            $('dropzone-module').classList.remove('hidden');
+            fileInput.value = '';
+        }
+
+        function downloadTemplate() {
+            const data = [
+                { 'Nome': 'João da Silva', 'E-mail': 'joao@exemplo.com.br', 'Plano': 'Ouro' },
+                { 'Nome': 'Maria Oliveira', 'E-mail': 'maria@exemplo.com.br', 'Plano': 'Prata' }
+            ];
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Mala Direta");
+            const ts = new Date().toISOString().slice(0,10);
+            XLSX.writeFile(wb, `StratSeg_Modelo_Mala_Direta_${ts}.xlsx`);
+            showToast("Modelo Baixado", "Preencha a planilha com seus contatos e faça a importação.", "info");
+        }
+
+        dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-strat-amber', 'bg-amber-50', 'scale-[1.02]'); });
+        dropzone.addEventListener('dragleave', () => { dropzone.classList.remove('border-strat-amber', 'bg-amber-50', 'scale-[1.02]'); });
+        dropzone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropzone.classList.remove('border-strat-amber', 'bg-amber-50', 'scale-[1.02]');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', e => {
+            if (e.target.files.length) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            const ext = '.' + (file.name.split('.').pop() || '').toLowerCase();
+            if (!ALLOWED_FILE_EXTENSIONS.includes(ext)) {
+                showToast("Arquivo Inválido", `Formato "${ext}" não suportado. Envie um arquivo .xlsx, .xls ou .csv.`, "error");
+                fileInput.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+
+                    if (!workbook.SheetNames || !workbook.SheetNames.length) {
+                        throw new Error("Não foi possível identificar nenhuma planilha dentro do arquivo.");
+                    }
+
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    State.rawJson = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+                    
+                    if (State.rawJson.length === 0) throw new Error("Planilha vazia ou formato não reconhecido.");
+                    
+                    State.columns = Object.keys(State.rawJson[0]);
+                    
+                    // UI Transitions
+                    $('intro-module').classList.add('hidden');
+                    $('dropzone-module').classList.add('hidden');
+                    $('mapping-module').classList.remove('hidden');
+                    
+                    setupMapping();
+                    showToast("Planilha Lida", `${State.rawJson.length} registros encontrados.`, "info");
+                } catch (err) {
+                    showToast("Falha na Leitura", err.message, "error");
+                } finally {
+                    fileInput.value = '';
+                }
+            };
+            reader.onerror = () => {
+                showToast("Falha na Leitura", "Não foi possível ler o arquivo selecionado. Ele pode estar corrompido.", "error");
+                fileInput.value = '';
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function setupMapping() {
+            const findCol = (kws) => State.columns.find(c => kws.some(k => c.toLowerCase().includes(k))) || '';
+            const createOpts = (sel, empty) => (empty?'<option value="">-- Ignorar --</option>':'') + State.columns.map(c => `<option value="${c}" ${c===sel?'selected':''}>${c}</option>`).join('');
+
+            const nameCol = findCol(['nome', 'cliente', 'name']);
+            const emailCol = findCol(['email', 'mail']);
+
+            $('col-name').innerHTML = createOpts(nameCol);
+            $('col-email').innerHTML = createOpts(emailCol);
+            $('col-plan').innerHTML = createOpts(findCol(['plano', 'produto']), true);
+
+            if (!nameCol || !emailCol) {
+                showToast("Confira o Mapeamento", "Não identifiquei automaticamente a coluna de Nome e/ou E-mail. Revise a seleção abaixo antes de continuar.", "error");
+            }
+
+            processData();
+            ['col-name', 'col-email', 'col-plan'].forEach(id => $(id).addEventListener('change', processData));
+        }
+
+        function processData() {
+            const cn = $('col-name').value, ce = $('col-email').value, cp = $('col-plan').value;
+            let ok = 0, err = 0;
+
+            State.leads = State.rawJson.map((row, idx) => {
+                const name = String(row[cn] || '').trim();
+                const email = String(row[ce] || '').trim();
+                const plan = cp ? String(row[cp] || '').trim() : '';
+                
+                let valid = true, error = '';
+                if (!name) { valid = false; error = 'Sem nome'; }
+                else if (!email) { valid = false; error = 'Sem e-mail'; }
+                else if (!emailRegex.test(email)) { valid = false; error = 'E-mail inválido'; }
+
+                if (valid) ok++; else err++;
+                return { id: idx, name, email, plan, valid, error, reviewed: false, status: 'pending', log: '' };
+            });
+
+            $('count-total').textContent = State.leads.length;
+            $('count-valid').textContent = ok;
+            $('count-invalid').textContent = err;
+            $('btn-next-2').disabled = ok === 0;
+
+            if (State.leads.length > 0 && err >= ok) {
+                showToast("Confira o Mapeamento", `${err} de ${State.leads.length} registros ficaram inválidos. As colunas de Nome e E-mail podem estar trocadas.`, "error");
+            }
+        }
+
+        function loadConfig() {
+            try {
+                const c = JSON.parse(localStorage.getItem(LOCAL_KEY));
+                if (c) {
+                    ['subject','cta','pubkey','service','template'].forEach(k => {
+                        if(c[k]) $(`cfg-${k}`).value = c[k];
+                    });
+                }
+            } catch(e) {}
+        }
+        loadConfig();
+
+        function saveAndBuildPreview() {
+            State.config = {
+                subject: $('cfg-subject').value.trim(), cta: $('cfg-cta').value.trim(),
+                pubkey: $('cfg-pubkey').value.trim(), service: $('cfg-service').value.trim(), template: $('cfg-template').value.trim(),
+            };
+
+            if (Object.values(State.config).some(v => !v)) {
+                showToast("Atenção", "Configure o assunto, o link e as chaves do EmailJS antes de continuar.", "error");
+                openSettings();
+                return;
+            }
+
+            localStorage.setItem(LOCAL_KEY, JSON.stringify(State.config));
+            
+            try { emailjs.init(State.config.pubkey); } 
+            catch(e) { showToast("Erro", "Chave Publica EmailJS inválida.", "error"); return; }
+            
+            State.reviewIndex = State.leads.findIndex(l => l.valid);
+            renderReviewList();
+            loadPreview();
+            changeView(3);
+        }
+
+        // Marca StratSeg em base64 (ícone de pontos, otimizado para ~5KB — leve o bastante para não pesar no payload do EmailJS)
+
+        // Template Residencial (baseado no e-mail "Energético" anexado pelo usuário, com tabelas para compatibilidade com Outlook e clientes antigos)
+        const getEmailHTML = (name, plan, ctaLink) => {
+            const firstName = escapeHtml(getFirstName(name));
+            const safePlan = escapeHtml(plan);
+            const safeCta = escapeHtml(ctaLink);
+            const planLine = plan ? `<p style="margin:6px 0 0 0;font-size:12.5px;color:#8a90a0;">Seu plano: <strong style="color:#14213d;">${safePlan}</strong></p>` : '';
+            const condo = 'Living Garden';
+            const whatsapp = '(11) 0000-0000';
+            const photoUrl = ''; // Cole aqui a URL da foto (ex: 'https://www.stratseg.com/assets/foto-familia.jpg'). Vazio = mantém o placeholder.
+            const photoBlock = photoUrl
+                ? `<img src="${photoUrl}" alt="" width="600" height="170" style="display:block;width:100%;max-width:600px;height:170px;border:0;">`
+                : `<span style="font-family:monospace;font-size:11px;letter-spacing:1.5px;color:rgba(255,255,255,.5);">[ FOTO · família em casa ]</span>`;
+            const coverageCards = [
+                ['Incêndio, raio e explosão', 'Estrutura e bens da residência.'],
+                ['Roubo e furto de bens', 'Seus pertences dentro de casa.'],
+                ['Danos elétricos', 'Curtos e picos de energia.'],
+                ['Responsabilidade civil', 'Danos involuntários a terceiros.'],
+                ['Vendaval e granizo', 'Eventos da natureza.'],
+                ['Assistência 24h', 'Chaveiro, encanador, eletricista.']
+            ];
+            const cardCell = ([title, desc], side) => `
+                <td width="50%" valign="top" style="padding:0 ${side === 'left' ? '6px 12px 0' : '0 12px 6px'};">
+                    <table width="100%" cellpadding="0" cellspacing="0"><tr><td style="border:1px solid #eef0f4;border-top:3px solid #fca311;border-radius:9px;padding:14px;">
+                        <div style="font-size:13.5px;font-weight:800;color:#14213d;">${title}</div>
+                        <div style="font-size:11.5px;line-height:1.45;color:#8a90a0;margin-top:3px;">${desc}</div>
+                    </td></tr></table>
+                </td>`;
+            const cardRows = [0, 2, 4].map(i => `<tr>${cardCell(coverageCards[i], 'left')}${cardCell(coverageCards[i + 1], 'right')}</tr>`).join('');
+
+            return `
+            <!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+            <body style="margin:0; padding:0; background-color:#e9eaee; font-family: Arial, Helvetica, sans-serif;">
+                <table width="100%" bgcolor="#e9eaee" cellpadding="0" cellspacing="0" style="padding: 40px 16px;">
+                    <tr><td align="center">
+                        <table width="600" bgcolor="#ffffff" cellpadding="0" cellspacing="0" style="max-width: 600px; width: 100%; border-radius: 4px; overflow: hidden;">
+
+                            <tr><td bgcolor="#14213d" style="padding:22px 28px;">
+                                <img src="https://www.stratseg.com/assets/STRATSEG%20BRANCO.png" alt="StratSeg" height="24" style="height:24px;width:auto;display:block;">
+                            </td></tr>
+
+                            <tr><td bgcolor="#14213d" style="background-image:radial-gradient(90% 80% at 110% 120%,rgba(252,163,17,.42) 0%,rgba(252,163,17,0) 55%),radial-gradient(70% 60% at -10% -20%,rgba(45,74,138,.6) 0%,rgba(45,74,138,0) 60%);padding:30px 28px 36px 28px;">
+                                <span style="display:inline-block;background:#fca311;border-radius:6px;padding:8px 14px;font-size:10.5px;font-weight:800;letter-spacing:1px;color:#14213d;text-transform:uppercase;">★ Exclusivo · moradores do ${condo}</span>
+                                <h2 style="margin:18px 0 0 0;font-size:32px;line-height:1.18;font-weight:800;color:#ffffff;letter-spacing:-.5px;">Seu lar protegido<br>com a <span style="color:#fca311;">curadoria StratSeg</span></h2>
+                                <p style="margin:14px 0 0 0;font-size:14px;line-height:1.6;color:#cfd5e2;max-width:420px;">Condição especial de Seguro Residencial negociada para o seu prédio. Mais proteção, preço justo, zero dor de cabeça.</p>
+                            </td></tr>
+
+                            <tr><td bgcolor="#0e1730" align="center" valign="middle" style="height:170px;">
+                                ${photoBlock}
+                            </td></tr>
+                            <tr><td style="background:#0e1730;line-height:0;font-size:0;">
+                                <svg viewBox="0 0 1200 120" preserveAspectRatio="none" style="display:block;width:100%;height:30px;"><path d="M0,0V7.23C0,65.52,268.63,112.77,600,112.77S1200,65.52,1200,7.23V0Z" fill="#fca311"></path></svg>
+                            </td></tr>
+
+                            <tr><td style="padding:22px 28px 0 28px;">
+                                <p style="margin:0 0 10px 0;font-size:15px;line-height:1.6;color:#14213d;font-weight:700;">Olá, ${firstName},</p>
+                                <p style="margin:0;font-size:14px;line-height:1.62;color:#55596a;">Um curto que queima os eletrônicos, um vazamento, um furto — imprevistos acontecem. O Seguro Residencial protege o que você levou anos para construir, por um valor que cabe no bolso. E como morador do <strong style="color:#14213d;">${condo}</strong>, você tem condição negociada.</p>
+                                ${planLine}
+                            </td></tr>
+
+                            <tr><td style="padding:26px 28px 6px 28px;">
+                                <div style="font-size:11px;font-weight:800;letter-spacing:2px;color:#e58c00;text-transform:uppercase;margin-bottom:4px;">O que está coberto</div>
+                                <h3 style="margin:0 0 18px 0;font-size:21px;font-weight:800;color:#14213d;">Proteção completa pra sua casa</h3>
+                                <table width="100%" cellpadding="0" cellspacing="0">${cardRows}</table>
+                            </td></tr>
+
+                            <tr><td style="padding:22px 28px 0 28px;">
+                                <table width="100%" cellpadding="0" cellspacing="0" style="background:#14213d;border-radius:12px;"><tr>
+                                    <td width="60" valign="middle" style="padding:18px 0 18px 20px;"><img src="https://www.stratseg.com/assets/STRATSEG%20BRANCO.png" alt="StratSeg" height="22" style="height:22px;width:auto;display:block;"></td>
+                                    <td valign="middle" style="padding:18px 20px 18px 10px;color:#ffffff;">
+                                        <div style="font-size:14px;font-weight:800;">StratSeg <span style="color:#fca311;">×</span> MDS Group</div>
+                                        <div style="font-size:11.5px;color:#c2c9d8;margin-top:2px;">Curadoria e negociação StratSeg, com o respaldo institucional do MDS Group.</div>
+                                    </td>
+                                </tr></table>
+                            </td></tr>
+
+                            <tr><td style="padding:16px 28px 0 28px;">
+                                <p style="margin:0;font-size:13px;line-height:1.6;color:#55596a;"><strong style="color:#14213d;">Por que pela StratSeg?</strong> Especialistas com décadas de experiência nas maiores seguradoras do país. Negociamos as melhores condições e cuidamos de tudo — da cotação ao sinistro.</p>
+                            </td></tr>
+
+                            <tr><td align="center" style="padding:24px 28px 30px 28px;">
+                                <a href="${safeCta}" style="display:inline-block;background:#fca311;border-radius:10px;padding:17px 34px;font-size:15.5px;font-weight:800;color:#14213d;text-decoration:none;">Quero minha cotação grátis →</a>
+                                <p style="margin:14px 0 0 0;font-size:12.5px;color:#8a90a0;">Prefere falar agora? WhatsApp <a href="#" style="color:#2d4a8a;font-weight:700;text-decoration:none;">${whatsapp}</a></p>
+                            </td></tr>
+
+                            <tr><td bgcolor="#14213d" style="padding:26px 28px;">
+                                <img src="https://www.stratseg.com/assets/STRATSEG%20BRANCO.png" alt="StratSeg" height="20" style="height:20px;width:auto;display:block;margin-bottom:12px;">
+                                <p style="margin:0;font-size:10.5px;line-height:1.7;color:#7c8393;">StratSeg Corretora de Seguros · CNPJ 60.321.987/0001-78 · SUSEP nº 000000000<br>Rua Joaquim Floriano, 1.052 — Itaim · São Paulo · SP · stratseg@stratseg.com<br>Seguro Residencial intermediado pela StratSeg, com apoio institucional do MDS Group.<br>Você recebeu por ser morador do ${condo}. <a href="#" style="color:#4a67a6;">Descadastrar</a>.</p>
+                            </td></tr>
+
+                        </table>
+                    </td></tr>
+                </table>
+            </body></html>`;
+        };
+
+        function getValidLeads() { return State.leads.filter(l => l.valid); }
+
+        function renderReviewList() {
+            const valid = getValidLeads();
+            $('review-total-count').textContent = valid.length;
+            
+            $('review-list').innerHTML = valid.map((l, i) => {
+                const isSel = i === State.reviewIndex;
+                const initials = getFirstName(l.name).substring(0,2).toUpperCase();
+                const safeName = escapeHtml(l.name);
+                const safeEmail = escapeHtml(l.email);
+                return `
+                <div onclick="selectReview(${i})" class="p-3 cursor-pointer transition-all flex items-center justify-between group ${isSel ? 'bg-amber-50/50 border-l-4 border-strat-amber' : 'border-l-4 border-transparent hover:bg-slate-50'}">
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div class="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 ${isSel ? 'bg-strat-amber text-strat-navy' : 'bg-slate-100 text-slate-500'}">${escapeHtml(initials)}</div>
+                        <div class="overflow-hidden">
+                            <div class="text-xs font-bold text-strat-navy truncate ${isSel?'':'group-hover:text-strat-royal'}">${safeName}</div>
+                            <div class="text-[10px] text-slate-400 truncate">${safeEmail}</div>
+                        </div>
+                    </div>
+                    <div class="shrink-0 pl-2">
+                        ${l.reviewed ? '<i class="ph-fill ph-check-circle text-emerald-500 text-lg"></i>' : '<div class="w-4 h-4 rounded-full border-2 border-slate-200"></div>'}
+                    </div>
+                </div>`;
+            }).join('');
+            
+            const activeEl = $('review-list').children[State.reviewIndex];
+            if(activeEl) activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function selectReview(idx) { State.reviewIndex = idx; renderReviewList(); loadPreview(); }
+        function prevReview() { if (State.reviewIndex > 0) selectReview(State.reviewIndex - 1); }
+        function nextReview() { if (State.reviewIndex < getValidLeads().length - 1) selectReview(State.reviewIndex + 1); }
+
+        function loadPreview() {
+            const valid = getValidLeads();
+            if (!valid.length) return;
+            const lead = valid[State.reviewIndex];
+            
+            $('preview-name').textContent = lead.name;
+            $('preview-email').textContent = `<${lead.email}>`;
+            $('preview-counter').textContent = `${State.reviewIndex + 1}/${valid.length}`;
+            
+            const subj = State.config.subject.replace(/\{\{\s*nome\s*\}\}/gi, getFirstName(lead.name));
+            $('preview-subject-bar').textContent = subj;
+            
+            const btn = $('btn-toggle-review');
+            if (lead.reviewed) {
+                btn.innerHTML = '<i class="ph-fill ph-check-circle"></i> Aprovado';
+                btn.className = "px-5 py-2 rounded-lg text-xs font-bold transition-all border border-emerald-500 bg-emerald-50 text-emerald-600 flex items-center gap-2 shadow-sm";
+            } else {
+                btn.innerHTML = '<i class="ph-bold ph-check-circle"></i> Aprovar Peça';
+                btn.className = "px-5 py-2 rounded-lg text-xs font-bold transition-all border border-slate-200 bg-white text-slate-600 hover:border-emerald-500 hover:text-emerald-600 flex items-center gap-2 shadow-sm";
+            }
+
+            const cta = buildPersonalizedLink(State.config.cta, lead.name);
+            const html = getEmailHTML(lead.name, lead.plan, cta);
+            
+            const iframe = $('preview-frame');
+            iframe.contentWindow.document.open();
+            iframe.contentWindow.document.write(html);
+            iframe.contentWindow.document.close();
+            
+            updateReviewNextBtn();
+        }
+
+        function toggleReviewStatus() {
+            const lead = getValidLeads()[State.reviewIndex];
+            lead.reviewed = !lead.reviewed;
+            if (lead.reviewed && State.reviewIndex < getValidLeads().length - 1) setTimeout(nextReview, 150);
+            else { renderReviewList(); loadPreview(); }
+        }
+
+        function markAllReviewed() {
+            getValidLeads().forEach(l => l.reviewed = true);
+            renderReviewList(); loadPreview();
+            showToast("Tudo Certo", "Todos os leads foram aprovados.", "success");
+        }
+
+        function updateReviewNextBtn() {
+            const count = getValidLeads().filter(l => l.reviewed).length;
+            $('btn-next-4').disabled = count === 0;
+            $('btn-next-4').innerHTML = `Aprovar e Ir para Disparo (${count}) <i class="ph-bold ph-arrow-right"></i>`;
+        }
+
+        function getApproved() { return getValidLeads().filter(l => l.reviewed); }
+
+        function updateLogTable() {
+            const app = getApproved();
+            let ok = 0, err = 0;
+
+            $('log-body').innerHTML = app.map((l, i) => {
+                let badge = '<span class="text-slate-400 bg-slate-100 px-2 py-1 rounded text-[10px] font-bold">FILA</span>';
+                if (l.status === 'sending') badge = '<span class="text-strat-amber bg-amber-50 px-2 py-1 rounded text-[10px] font-bold animate-pulse">ENVIANDO...</span>';
+                else if (l.status === 'success') { ok++; badge = '<span class="text-emerald-600 bg-emerald-50 px-2 py-1 rounded text-[10px] font-bold">OK</span>'; }
+                else if (l.status === 'error') { err++; badge = '<span class="text-rose-600 bg-rose-50 px-2 py-1 rounded text-[10px] font-bold">ERRO</span>'; }
+
+                const safeName = escapeHtml(l.name);
+                const safeEmail = escapeHtml(l.email);
+                const safeLog = escapeHtml(l.log || '-');
+
+                return `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-6 py-3 text-slate-400 font-mono text-xs">${i+1}</td>
+                    <td class="px-6 py-3"><div class="text-sm font-bold text-strat-navy">${safeName}</div><div class="text-xs text-slate-400">${safeEmail}</div></td>
+                    <td class="px-6 py-3">${badge}</td>
+                    <td class="px-6 py-3 text-xs text-slate-500 truncate max-w-[200px]" title="${safeLog}">${safeLog}</td>
+                </tr>`;
+            }).join('');
+
+            $('log-count-ok').textContent = ok;
+            $('log-count-err').textContent = err;
+            $('send-total').textContent = app.length;
+            $('send-sent').textContent = ok + err;
+            
+            const pct = app.length ? ((ok + err) / app.length) * 100 : 0;
+            $('send-progress-bar').style.width = `${pct}%`;
+
+            if ((ok + err) === app.length && app.length > 0 && State.sending) {
+                State.sending = false;
+                $('btn-start-send').style.display = 'none';
+                $('btn-pause-send').style.display = 'none';
+                $('btn-export').disabled = false;
+                $('btn-export').className = "w-full py-3.5 rounded-xl font-bold text-sm bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2";
+                showToast("Concluído", "Disparo finalizado.", "success");
+            }
+        }
+
+        // Classifica o erro de envio do EmailJS para mensagens consistentes entre o disparo em massa e o teste
+        function classifySendError(error) {
+            const status = error && error.status;
+            const text = (error && (error.text || error.message)) || '';
+
+            if (status === 429 || status === 412 || /limit/i.test(text)) {
+                return { kind: 'limit', message: 'Limite da conta EmailJS atingido.' };
+            }
+            if (status === 401 || status === 403) {
+                return { kind: 'auth', message: 'Autenticação recusada pelo EmailJS. Verifique a Chave Pública.' };
+            }
+            if (status === 400) {
+                return { kind: 'config', message: `Configuração inválida (Service/Template ID).${text ? ' ' + text : ''}` };
+            }
+            if (!navigator.onLine || /failed to fetch|network/i.test(text)) {
+                return { kind: 'network', message: 'Falha de conexão com a internet.' };
+            }
+            return { kind: 'unknown', message: text || 'Falha no envio.' };
+        }
+
+        async function sendTestEmail() {
+            const valid = getValidLeads();
+            if (!valid.length) return;
+            const lead = valid[State.reviewIndex];
+
+            if (!navigator.onLine) {
+                showToast("Sem Conexão", "Você está offline. Verifique sua internet antes de enviar o teste.", "error");
+                return;
+            }
+
+            const lastTestEmail = localStorage.getItem('stratseg_test_email') || '';
+            const testEmail = (prompt("Enviar e-mail de teste para qual endereço?", lastTestEmail) || '').trim();
+            if (!testEmail) return;
+            if (!emailRegex.test(testEmail)) {
+                showToast("E-mail Inválido", "Digite um e-mail válido para receber o teste.", "error");
+                return;
+            }
+            localStorage.setItem('stratseg_test_email', testEmail);
+
+            const btn = $('btn-send-test');
+            const originalHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner" style="border-top-color:#1a2542;"></div> Enviando...';
+
+            try {
+                const ctaLink = buildPersonalizedLink(State.config.cta, lead.name);
+                const html = getEmailHTML(lead.name, lead.plan, ctaLink);
+                const subject = '[TESTE] ' + State.config.subject.replace(/\{\{\s*nome\s*\}\}/gi, getFirstName(lead.name));
+
+                await emailjs.send(State.config.service, State.config.template, {
+                    to_email: testEmail, to_name: 'Teste', subject: subject, html_content: html
+                });
+
+                showToast("Teste Enviado", `Confira a caixa de entrada de ${testEmail}.`, "success");
+                logToHistory({ name: lead.name, email: testEmail, plan: lead.plan }, 'success', 'Teste entregue.', { teste: true });
+            } catch (error) {
+                const { message } = classifySendError(error);
+                showToast("Falha no Teste", message, "error");
+                logToHistory({ name: lead.name, email: testEmail, plan: lead.plan }, 'error', message, { teste: true });
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+            }
+        }
+
+        async function startSending() {
+            const app = getApproved();
+            if (!app.length) return;
+
+            if (!navigator.onLine) {
+                showToast("Sem Conexão", "Você está offline. Verifique sua internet antes de iniciar o disparo.", "error");
+                return;
+            }
+
+            State.sending = true; State.paused = false;
+            
+            const btn = $('btn-start-send');
+            btn.disabled = true; btn.classList.add('opacity-50', 'cursor-not-allowed');
+            btn.innerHTML = '<div class="spinner"></div> PROCESSANDO...';
+            $('btn-pause-send').disabled = false;
+            $('btn-back-4').disabled = true;
+
+            for (let i = 0; i < app.length; i++) {
+                if (State.paused) break;
+                const lead = app[i];
+                if (lead.status === 'success') continue;
+
+                lead.status = 'sending'; updateLogTable();
+                const tbody = $('log-body');
+                if(tbody.children[i]) tbody.children[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                try {
+                    const ctaLink = buildPersonalizedLink(State.config.cta, lead.name);
+                    const html = getEmailHTML(lead.name, lead.plan, ctaLink);
+                    const subject = State.config.subject.replace(/\{\{\s*nome\s*\}\}/gi, getFirstName(lead.name));
+
+                    await emailjs.send(State.config.service, State.config.template, {
+                        to_email: lead.email, to_name: lead.name, subject: subject, html_content: html
+                    });
+                    
+                    lead.status = 'success'; lead.log = 'Entregue com sucesso.';
+                    logToHistory(lead, 'success', lead.log);
+                } catch (error) {
+                    lead.status = 'error';
+                    const { kind, message } = classifySendError(error);
+                    lead.log = message;
+                    logToHistory(lead, 'error', lead.log);
+
+                    if (kind === 'limit') {
+                        pauseSending(); showToast("Atenção", "Limite da API atingido. Disparo pausado.", "error");
+                    } else if (kind === 'auth') {
+                        pauseSending(); showToast("Erro de Autenticação", "Chave pública do EmailJS inválida ou recusada. Disparo pausado.", "error");
+                    } else if (kind === 'config') {
+                        pauseSending(); showToast("Configuração Inválida", "Service ID ou Template ID incorretos. Revise o Passo 2. Disparo pausado.", "error");
+                    } else if (kind === 'network') {
+                        pauseSending(); showToast("Sem Conexão", "Conexão perdida durante o envio. Disparo pausado.", "error");
+                    }
+                }
+
+                updateLogTable();
+                if (i < app.length - 1 && !State.paused) await new Promise(r => setTimeout(r, 2000)); // Rate limit 2s
+            }
+
+            // Disparo percorreu todos os leads sem ser pausado: fecha o estado corretamente
+            if (!State.paused) {
+                State.sending = false;
+                btn.disabled = false; btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                btn.innerHTML = '<i class="ph-fill ph-check-circle text-xl"></i> DISPARO CONCLUÍDO';
+                $('btn-pause-send').disabled = true;
+                $('btn-back-4').disabled = false;
+                showToast("Concluído", "Disparo finalizado.", "success");
+            }
+        }
+
+        function pauseSending() {
+            State.paused = true; State.sending = false;
+            const btn = $('btn-start-send');
+            btn.disabled = false; btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            btn.innerHTML = '<i class="ph-fill ph-play-circle text-xl"></i> RETOMAR DISPARO';
+            $('btn-pause-send').disabled = true;
+            $('btn-back-4').disabled = false;
+            showToast("Pausado", "Disparo interrompido pelo usuário.", "info");
+        }
+
+        function exportReport() {
+            const approved = getApproved();
+            if (!approved.length) {
+                showToast("Nada para Exportar", "Não há leads aprovados/processados para gerar o relatório.", "error");
+                return;
+            }
+
+            try {
+                const data = approved.map(l => ({
+                    'Nome': l.name, 'E-mail': l.email, 'Plano': l.plan,
+                    'Status': l.status === 'success' ? 'Sucesso' : 'Falha', 'Log do Servidor': l.log
+                }));
+                const ws = XLSX.utils.json_to_sheet(data);
+                ws['!cols'] = [ {wch:25}, {wch:35}, {wch:20}, {wch:15}, {wch:40} ];
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Relatório");
+                const ts = new Date().toISOString().slice(0,16).replace('T', '_').replace(':', 'h');
+                XLSX.writeFile(wb, `StratSeg_Disparos_${ts}.xlsx`);
+            } catch (err) {
+                showToast("Falha na Exportação", "Não foi possível gerar o arquivo do relatório.", "error");
+            }
+        }
+
+        // ================= MODAL DE HISTÓRICO =================
+        function openHistory() {
+            $('history-modal').classList.remove('hidden');
+            $('history-modal').classList.add('flex');
+            loadHistory();
+        }
+
+        function closeHistory() {
+            $('history-modal').classList.add('hidden');
+            $('history-modal').classList.remove('flex');
+        }
+
+        async function loadHistory() {
+            const body = $('history-body');
+
+            if (!firebaseReady) {
+                body.innerHTML = `<div class="p-12 text-center">
+                    <i class="ph-bold ph-plug text-3xl mb-3 block text-slate-300"></i>
+                    <p class="text-sm text-slate-500 max-w-sm mx-auto">O histórico ainda não está conectado a um banco de dados.</p>
+                    <p class="text-xs text-slate-400 max-w-sm mx-auto mt-1.5">Cole as credenciais do Firebase na constante <code class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">firebaseConfig</code>, no início do script, pra começar a guardar os envios entre sessões.</p>
+                </div>`;
+                return;
+            }
+
+            body.innerHTML = `<div class="p-12 flex justify-center"><div class="spinner" style="border-top-color:#1a2542;"></div></div>`;
+
+            try {
+                const snap = await db.collection(LOGS_COLLECTION).orderBy('timestamp', 'desc').limit(150).get();
+
+                if (snap.empty) {
+                    body.innerHTML = `<div class="p-12 text-center text-sm text-slate-400">Nenhum envio registrado ainda. Assim que você disparar ou testar um e-mail, ele aparece aqui.</div>`;
+                    return;
+                }
+
+                const rows = snap.docs.map(doc => {
+                    const d = doc.data();
+                    const when = d.timestamp && d.timestamp.toDate ? d.timestamp.toDate().toLocaleString('pt-BR') : '—';
+                    const badge = d.status === 'success'
+                        ? '<span class="text-emerald-600 bg-emerald-50 px-2 py-1 rounded text-[10px] font-bold">OK</span>'
+                        : d.status === 'error'
+                        ? '<span class="text-rose-600 bg-rose-50 px-2 py-1 rounded text-[10px] font-bold">ERRO</span>'
+                        : '<span class="text-slate-400 bg-slate-100 px-2 py-1 rounded text-[10px] font-bold">—</span>';
+                    return `
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-6 py-2.5 text-[11px] text-slate-400 font-mono whitespace-nowrap">${when}</td>
+                            <td class="px-3 py-2.5">
+                                <div class="font-bold text-strat-navy text-xs">${escapeHtml(d.nome)}${d.teste ? ' <span class="text-[9px] font-bold text-strat-royal uppercase">· teste</span>' : ''}</div>
+                                <div class="text-[11px] text-slate-400">${escapeHtml(d.email)}</div>
+                            </td>
+                            <td class="px-3 py-2.5 text-xs text-slate-500 truncate max-w-[220px]" title="${escapeHtml(d.assunto)}">${escapeHtml(d.assunto || '-')}</td>
+                            <td class="px-3 py-2.5">${badge}</td>
+                        </tr>`;
+                }).join('');
+
+                body.innerHTML = `
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-50 sticky top-0 z-10">
+                            <tr>
+                                <th class="text-left px-6 py-3 text-[10.5px] font-bold text-slate-400 uppercase tracking-wide">Quando</th>
+                                <th class="text-left px-3 py-3 text-[10.5px] font-bold text-slate-400 uppercase tracking-wide">Lead</th>
+                                <th class="text-left px-3 py-3 text-[10.5px] font-bold text-slate-400 uppercase tracking-wide">Assunto</th>
+                                <th class="text-left px-3 py-3 text-[10.5px] font-bold text-slate-400 uppercase tracking-wide">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">${rows}</tbody>
+                    </table>`;
+            } catch (err) {
+                console.error('Falha ao carregar histórico:', err);
+                body.innerHTML = `<div class="p-12 text-center text-sm text-rose-500">Não foi possível carregar o histórico agora. ${escapeHtml(err.message || '')}</div>`;
+            }
+        }
+
+    </script>
+
+    <!-- MODAL DE HISTÓRICO DE ENVIOS -->
+    <div id="history-modal" class="hidden fixed inset-0 z-[100] items-center justify-center bg-strat-navy/40 backdrop-blur-sm p-6" onclick="if(event.target===this) closeHistory()">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[78vh] flex flex-col overflow-hidden">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 flex-shrink-0">
+                <h3 class="font-heading font-extrabold text-lg text-strat-navy flex items-center gap-2">
+                    <i class="ph-bold ph-clock-counter-clockwise text-strat-amber"></i> Histórico de Envios
+                </h3>
+                <div class="flex items-center gap-4">
+                    <button onclick="loadHistory()" class="text-xs font-bold text-strat-royal hover:text-strat-navy flex items-center gap-1.5 transition-colors">
+                        <i class="ph-bold ph-arrows-clockwise"></i> Atualizar
+                    </button>
+                    <button onclick="closeHistory()" class="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-colors">
+                        <i class="ph-bold ph-x"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="overflow-y-auto flex-1" id="history-body"></div>
+        </div>
+    </div>
+</body>
+</html>
